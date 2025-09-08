@@ -1,25 +1,25 @@
 // Datos de usuarios (en un sistema real, esto estaría en una base de datos)
 const users = {
-    'supervision10@admin.com': {
-        password: 'admin123',
+    'admin@zonax.com': {
+        password: 'admin',
         role: 'admin',
         name: 'Supervisora',
         school: 'Todas'
     },
     'secundaria6@zonax.com': {
-        password: 'sec6123',
+        password: 'sec6',
         role: 'school',
         name: 'Secundaria Técnica #6',
         school: '26DST0006K'
     },
     'secundaria60@zonax.com': {
-        password: 'sec60123',
+        password: 'sec60',
         role: 'school',
         name: 'Secundaria Técnica #60',
         school: '26DST0060K'
     },
     'secundaria72@zonax.com': {
-        password: 'sec72123',
+        password: 'sec72',
         role: 'school',
         name: 'Secundaria Técnica #72',
         school: '26DST0072K'
@@ -57,11 +57,30 @@ document.addEventListener('DOMContentLoaded', function() {
         showDashboard();
     }
 
+    // Cargar datos guardados
+    const savedFiles = localStorage.getItem('uploadedFiles');
+    if (savedFiles) {
+        uploadedFiles = JSON.parse(savedFiles);
+    }
+    
+    const savedEmails = localStorage.getItem('emailRecipients');
+    if (savedEmails) {
+        emailRecipients = JSON.parse(savedEmails);
+    }
+    
+    const savedHistory = localStorage.getItem('reportHistory');
+    if (savedHistory) {
+        reportHistory = JSON.parse(savedHistory);
+    }
+
     // Configurar el horario de turnos
     updateTurnInfo();
 
     // Cargar historial
     loadHistory();
+    
+    // Cargar lista de correos
+    loadEmailList();
 
     // Event listeners
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
@@ -281,7 +300,10 @@ function handleFileUpload(e) {
         timestamp: new Date()
     };
     
-    // Simular subida de archivo (en un sistema real, aquí se enviaría al servidor)
+    // Guardar en localStorage
+    localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
+    
+    // Simular subida de archivo
     alert(`Archivo "${file.name}" subido correctamente para el turno ${currentTurn}.`);
     closeUploadModal();
     
@@ -304,6 +326,9 @@ function handleFileUpload(e) {
         alumnos: '--/--',
         maestros: '--/--'
     });
+    
+    // Guardar historial en localStorage
+    localStorage.setItem('reportHistory', JSON.stringify(reportHistory));
     
     loadHistory();
 }
@@ -372,18 +397,11 @@ function handleAddEmail() {
     if (!emailRecipients.includes(newEmail)) {
         emailRecipients.push(newEmail);
         
-        // Actualizar interfaz
-        const emailItem = document.createElement('div');
-        emailItem.className = 'email-item';
-        emailItem.innerHTML = `
-            <span>${newEmail}</span>
-            <div class="email-actions">
-                <button class="btn-icon" onclick="editEmail('${newEmail}')"><i class="fas fa-edit"></i></button>
-                <button class="btn-icon" onclick="deleteEmail('${newEmail}')"><i class="fas fa-trash"></i></button>
-            </div>
-        `;
+        // Guardar en localStorage
+        localStorage.setItem('emailRecipients', JSON.stringify(emailRecipients));
         
-        document.getElementById('emailList').appendChild(emailItem);
+        // Actualizar interfaz
+        loadEmailList();
         newEmailInput.value = '';
         
         alert('Correo electrónico agregado exitosamente.');
@@ -392,13 +410,17 @@ function handleAddEmail() {
     }
 }
 
-// Función para editar un correo (placeholder)
+// Función para editar un correo
 function editEmail(email) {
     const newEmail = prompt('Editar correo electrónico:', email);
     if (newEmail && newEmail !== email) {
         const index = emailRecipients.indexOf(email);
         if (index !== -1) {
             emailRecipients[index] = newEmail;
+            
+            // Guardar en localStorage
+            localStorage.setItem('emailRecipients', JSON.stringify(emailRecipients));
+            
             alert('Correo electrónico actualizado. Recargando lista...');
             loadEmailList();
         }
@@ -411,6 +433,10 @@ function deleteEmail(email) {
         const index = emailRecipients.indexOf(email);
         if (index !== -1) {
             emailRecipients.splice(index, 1);
+            
+            // Guardar en localStorage
+            localStorage.setItem('emailRecipients', JSON.stringify(emailRecipients));
+            
             alert('Correo electrónico eliminado. Recargando lista...');
             loadEmailList();
         }
