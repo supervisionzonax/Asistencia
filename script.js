@@ -1,32 +1,32 @@
 // Datos de usuarios (en un sistema real, esto estaría en una base de datos)
 const users = {
-    'admin@zonax.com': {
+    'supervisora@zonax.com': {
         password: 'admin',
         role: 'admin',
         name: 'Supervisora',
         school: 'Todas'
     },
     'secundaria6@zonax.com': {
-        password: 'sec6',
+        password: 'secundaria6',
         role: 'school',
         name: 'Secundaria Técnica #6',
         school: '26DST0006K'
     },
     'secundaria60@zonax.com': {
-        password: 'sec60',
+        password: 'secundaria60',
         role: 'school',
         name: 'Secundaria Técnica #60',
         school: '26DST0060K'
     },
     'secundaria72@zonax.com': {
-        password: 'sec72',
+        password: 'secundaria72',
         role: 'school',
         name: 'Secundaria Técnica #72',
         school: '26DST0072K'
     }
 };
 
-// Estado de la aplicación
+// Estado de la aplicación - REINICIADO PARA PRUEBAS
 let currentUser = null;
 let currentTurn = 'matutino'; // 'matutino' o 'vespertino'
 let uploadedFiles = {
@@ -41,12 +41,11 @@ let emailRecipients = [
     'director.secundaria6@sec-sonora.edu.mx'
 ];
 
-// Historial de reportes
-let reportHistory = [
-    { fecha: '07/09/2025', escuela: 'Secundaria Técnica #6', turno: 'Matutino', alumnos: '376/439', maestros: '14/18' },
-    { fecha: '07/09/2025', escuela: 'Secundaria Técnica #60', turno: 'Matutino', alumnos: '420/500', maestros: '16/20' },
-    { fecha: '07/09/2025', escuela: 'Secundaria Técnica #72', turno: 'Matutino', alumnos: '380/450', maestros: '15/19' }
-];
+// Historial de reportes - VACÍO PARA PRUEBAS
+let reportHistory = [];
+
+// Variable para almacenar la escuela actual al ver un archivo
+let currentViewingSchool = null;
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', function() {
@@ -57,22 +56,9 @@ document.addEventListener('DOMContentLoaded', function() {
         showDashboard();
     }
 
-    // Cargar datos guardados
-    const savedFiles = localStorage.getItem('uploadedFiles');
-    if (savedFiles) {
-        uploadedFiles = JSON.parse(savedFiles);
-    }
+    // NO cargar datos guardados para que todo esté en estado inicial
+    // Esto asegura que las escuelas aparezcan como pendientes
     
-    const savedEmails = localStorage.getItem('emailRecipients');
-    if (savedEmails) {
-        emailRecipients = JSON.parse(savedEmails);
-    }
-    
-    const savedHistory = localStorage.getItem('reportHistory');
-    if (savedHistory) {
-        reportHistory = JSON.parse(savedHistory);
-    }
-
     // Configurar el horario de turnos
     updateTurnInfo();
 
@@ -93,8 +79,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Cerrar modales al hacer clic fuera de ellos
     window.addEventListener('click', function(event) {
         const uploadModal = document.getElementById('uploadModal');
+        const viewFileModal = document.getElementById('viewFileModal');
+        
         if (event.target === uploadModal) {
             closeUploadModal();
+        }
+        
+        if (event.target === viewFileModal) {
+            closeViewFileModal();
         }
     });
 });
@@ -161,6 +153,7 @@ function showDashboard() {
 function renderAdminDashboard() {
     const dashboard = document.getElementById('schoolDashboard');
     dashboard.innerHTML = '';
+    dashboard.classList.remove('school-dashboard-centered');
     
     // Agregar tarjetas para las tres escuelas
     const schools = [
@@ -190,8 +183,13 @@ function renderAdminDashboard() {
                 </div>
                 <p>Estado del reporte de hoy:</p>
                 <div class="upload-status">
-                    <span>Estado: <span class="status ${hasFile ? 'status-completed' : 'status-pending'}">${hasFile ? 'Completado' : 'Pendiente'}</span></span>
-                    <button class="btn btn-primary" onclick="openUploadModal('${school.name}', '${school.id}')">${hasFile ? 'Reemplazar' : 'Subir'} Reporte</button>
+                    <div class="status-container">
+                        <span>Estado: <span class="status ${hasFile ? 'status-completed' : 'status-pending'}">${hasFile ? 'Completado' : 'Pendiente'}</span></span>
+                        ${hasFile ? `<button class="view-file-btn" onclick="viewFile('${school.id}')"><i class="fas fa-eye"></i></button>` : ''}
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="openUploadModal('${school.name}', '${school.id}')">${hasFile ? 'Reemplazar' : 'Subir'} Reporte</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -203,6 +201,7 @@ function renderAdminDashboard() {
 function renderSchoolDashboard() {
     const dashboard = document.getElementById('schoolDashboard');
     dashboard.innerHTML = '';
+    dashboard.classList.add('school-dashboard-centered');
     
     const hasFile = uploadedFiles[currentUser.school][currentTurn] !== null;
     
@@ -224,11 +223,13 @@ function renderSchoolDashboard() {
             </div>
             <p>Sube el reporte de asistencia del día de hoy.</p>
             <div class="upload-status">
-                <span>Estado: <span class="status ${hasFile ? 'status-completed' : 'status-pending'}">${hasFile ? 'Completado' : 'Pendiente'}</span></span>
-                <button class="btn btn-primary" onclick="openUploadModal('${currentUser.name}', '${currentUser.school}')">${hasFile ? 'Reemplazar' : 'Subir'} Reporte</button>
-            </div>
-            <div class="upload-note">
-                <p><small><i class="fas fa-info-circle"></i> Solo puedes subir un archivo por turno. Para modificarlo, contacta al administrador.</small></p>
+                <div class="status-container">
+                    <span>Estado: <span class="status ${hasFile ? 'status-completed' : 'status-pending'}">${hasFile ? 'Completado' : 'Pendiente'}</span></span>
+                    ${hasFile ? `<button class="view-file-btn" onclick="viewFile('${currentUser.school}')"><i class="fas fa-eye"></i></button>` : ''}
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="openUploadModal('${currentUser.name}', '${currentUser.school}')">${hasFile ? 'Reemplazar' : 'Subir'} Reporte</button>
+                </div>
             </div>
         </div>
     `;
@@ -271,6 +272,61 @@ function closeUploadModal() {
     document.getElementById('uploadForm').removeAttribute('data-school-id');
 }
 
+// Función para abrir el modal de visualización de archivo
+function viewFile(schoolId) {
+    currentViewingSchool = schoolId;
+    const fileInfo = uploadedFiles[schoolId][currentTurn];
+    
+    document.getElementById('viewFileModalTitle').textContent = `Documento Subido - ${getSchoolName(schoolId)}`;
+    
+    // Mostrar información del archivo
+    document.getElementById('fileViewContent').innerHTML = `
+        <div class="file-info">
+            <p><strong>Nombre del archivo:</strong> ${fileInfo.name}</p>
+            <p><strong>Tamaño:</strong> ${formatFileSize(fileInfo.size)}</p>
+            <p><strong>Subido el:</strong> ${new Date(fileInfo.timestamp).toLocaleString('es-MX')}</p>
+            <p><strong>Turno:</strong> ${currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1)}</p>
+        </div>
+        <div class="file-preview">
+            <p><i class="fas fa-file-excel" style="font-size: 48px; color: #1D6F42;"></i></p>
+            <p>Vista previa no disponible. Descargue el archivo para ver el contenido.</p>
+        </div>
+    `;
+    
+    document.getElementById('viewFileModal').style.display = 'flex';
+}
+
+// Función para cerrar el modal de visualización de archivo
+function closeViewFileModal() {
+    document.getElementById('viewFileModal').style.display = 'none';
+    currentViewingSchool = null;
+}
+
+// Función para reemplazar un archivo
+function replaceFile() {
+    if (currentViewingSchool) {
+        closeViewFileModal();
+        openUploadModal(getSchoolName(currentViewingSchool), currentViewingSchool);
+    }
+}
+
+// Función auxiliar para obtener el nombre de la escuela
+function getSchoolName(schoolId) {
+    switch(schoolId) {
+        case '26DST0006K': return 'Secundaria Técnica #6';
+        case '26DST0060K': return 'Secundaria Técnica #60';
+        case '26DST0072K': return 'Secundaria Técnica #72';
+        default: return currentUser.name;
+    }
+}
+
+// Función para formatear el tamaño del archivo
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' bytes';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
 // Función para manejar la subida de archivos
 function handleFileUpload(e) {
     e.preventDefault();
@@ -293,7 +349,7 @@ function handleFileUpload(e) {
         return;
     }
     
-    // Guardar información del archivo subido
+    // Guardar información del archivo subido (solo para la escuela específica)
     uploadedFiles[schoolId][currentTurn] = {
         name: file.name,
         size: file.size,

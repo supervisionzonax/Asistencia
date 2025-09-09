@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Gestión de Asistencia - SEC Sonora</title>
+    <title>Gestión de Asistencia - ZONA X</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
@@ -13,10 +13,10 @@
     <header>
         <div class="container header-content">
             <div class="logo">
-                <img src="assets/logo.png" alt="Logo SEC Sonora" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM3YTFjNGEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTAgMTNhNSA1IDAgMCAwIDcgMGwzLTMiPjxwYXRoIGQ9Ik0xNCAxMWE1IDUgMCAwIDAtNyAwbC0zIDMiPjxwYXRoIGQ9Ik0yIDhhOCA4IDAgMCAxIDEwLjg3NCA3LjQ0OSIgLz48cGF0aCBkPSJNNSA0aDE0YTIgMiAwIDAgMSAyIDJ2NGEyIDIgMCAwIDEtMiAySDVhMiAyIDAgMCAxLTItMlY2YTIgMiAwIDAgMSAyLTJ6Ii8+PC9zdmc+'">
+                <img src="assets/logo.png" alt="Logo SEC Sonora" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM3YTFjNGEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA�InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTAgMTNhNSA1IDAgMCAwIDcgMGwzLTMiPjxwYXRoIGQ9Ik0xNCAxMWE1IDUgMCAwIDAtNyAwbC0zIDMiPjxwYXRoIGQ9Ik0yIDhhOCA4IDAgMCAxIDEwLjg3NCA3LjQ0OSIgLz48cGF0aCBkPSJNNSA0aDE0YTIgMiAwIDAgMSAyIDJ2NGEyIDIgMCAwIDEtMiAySDVhMiAyIDAgMCAxLTItMlY2YTIgMiAwIDAgMSAyLTJ6Ii8+PC9zdmc+'">
                 <div class="logo-text">
-                    <h1>SEC Sonora</h1>
-                    <p>Sistema de Gestión de Asistencia Escolar</p>
+                    <h1>SUPERVISIÓN ZONA X</h1>
+                    <p>C. Mtra. Griselda Zaiz Cruz</p>
                 </div>
             </div>
             <div class="auth-buttons">
@@ -47,7 +47,7 @@
                     <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
                 </form>
                 <div class="login-footer">
-                    <p>¿Problemas para acceder? Contacte al administrador</p>
+                    <p>¿Problemas para acceder? Contacte al administrador. 6622293879.</p>
                 </div>
             </div>
         </div>
@@ -56,7 +56,7 @@
         <div id="dashboardPage" style="display:none;">
             <div class="hero">
                 <h2>Reportes de Asistencia Diaria</h2>
-                <p id="welcomeMessage">Bienvenido al sistema de gestión de asistencia escolar</p>
+                <p id="welcomeMessage">Bienvenido al nuevo sistema de gestión de asistencia escolar</p>
                 <div id="turnInfo" class="turn-info">
                     <h3>Turno Actual: <span id="currentTurn">Matutino</span></h3>
                     <p>Horario: <span id="turnTime">07:30 AM</span></p>
@@ -74,7 +74,7 @@
                     <div class="merge-action">
                         <button class="btn btn-primary" id="mergeBtn">Juntar 3 Archivos</button>
                         <div class="spinner" id="mergeSpinner"></div>
-                        <button class="btn btn-success" id="sendBtn">Enviar Concentrado</button>
+                        <button class="btn btn-success" id="sendBtn" style="display:none;">Enviar Concentrado</button>
                     </div>
                 </div>
 
@@ -103,9 +103,9 @@
                 </div>
 
                 <div class="history-section">
-                    <h3>Historial de Reportes (Última Semana)</h3>
-                    <div class="history-table">
-                        <table>
+                    <h3>Historial de Reportes</h3>
+                    <div class="history-table-container">
+                        <table class="history-table">
                             <thead>
                                 <tr>
                                     <th>Fecha</th>
@@ -145,28 +145,38 @@
         </div>
     </div>
 
+    <!-- View File Modal -->
+    <div class="modal" id="viewFileModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="viewFileModalTitle">Documento Subido</h3>
+                <button type="button" class="btn-icon close-modal" onclick="closeViewFileModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="fileViewContent">
+                    <p>Aquí se mostrará el documento subido.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeViewFileModal()">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="replaceFile()">Reemplazar Archivo</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer>
         <div class="container footer-content">
             <div class="footer-section">
-                <h4>SEC Sonora</h4>
-                <p>Secretaría de Educación y Cultura del Estado de Sonora</p>
+                <h4>Secretaría de Educación y Cultura del Estado de Sonora.</h4>
+                <p>Dirección de Educación Secundaria Técnica.</p>
                 <p>Hermosillo, Sonora, México</p>
-            </div>
-            <div class="footer-section">
-                <h4>Contacto</h4>
-                <p>Teléfono: (662) 123-4567</p>
-                <p>Email: contacto@sec-sonora.edu.mx</p>
-            </div>
-            <div class="footer-section">
-                <h4>Enlaces Rápidos</h4>
-                <a href="#">Política de Privacidad</a>
-                <a href="#">Términos de Uso</a>
-                <a href="#">Soporte Técnico</a>
             </div>
         </div>
         <div class="footer-bottom">
-            <p>© 2025 SEC Sonora - Todos los derechos reservados</p>
+            <p>© 2025 SUPERVISIÓN ZONA X - Todos los derechos reservados.</p>
         </div>
     </footer>
 
