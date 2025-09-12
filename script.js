@@ -1,242 +1,224 @@
-// Datos de usuarios (en un sistema real, esto estaría en una base de datos)
-const users = {
-    'supervisora@zonax.com': {
-        password: 'admin',
-        role: 'admin',
-        name: 'Supervisora',
-        school: 'Todas'
-    },
-    'secundaria6@zonax.com': {
-        password: 'secundaria6',
-        role: 'school',
-        name: 'Secundaria Técnica #6',
-        school: '26DST0006K'
-    },
-    'secundaria60@zonax.com': {
-        password: 'secundaria60',
-        role: 'school',
-        name: 'Secundaria Técnica #60',
-        school: '26DST0060K'
-    },
-    'secundaria72@zonax.com': {
-        password: 'secundaria72',
-        role: 'school',
-        name: 'Secundaria Técnica #72',
-        school: '26DST0072K'
-    }
-};
+// Variables globales
+let currentViewingFile = null;
+let currentFileName = null;
+let currentSchoolId = null;
+let currentTurno = null;
+let currentFileId = null;
 
-// Estado de la aplicación - REINICIADO PARA PRUEBAS
-let currentUser = null;
-let currentTurn = 'matutino'; // 'matutino' o 'vespertino'
-let uploadedFiles = {
-    '26DST0006K': { matutino: null, vespertino: null },
-    '26DST0060K': { matutino: null, vespertino: null },
-    '26DST0072K': { matutino: null, vespertino: null }
-};
+// Variables de usuario desde PHP
+const userSchoolName = '<?php echo isset($_SESSION["user"]) ? $_SESSION["user"]["nombre"] : ""; ?>';
+const isUserAdmin = '<?php echo isset($_SESSION["user"]) && $_SESSION["user"]["rol"] === "admin" ? "true" : "false"; ?>';
 
-// Lista de correos destinatarios
-let emailRecipients = [
-    'supervision@sec-sonora.edu.mx',
-    'director.secundaria6@sec-sonora.edu.mx'
-];
-
-// Historial de reportes - VACÍO PARA PRUEBAS
-let reportHistory = [];
-
-// Variable para almacenar la escuela actual al ver un archivo
-let currentViewingSchool = null;
-
-// Inicialización
-document.addEventListener('DOMContentLoaded', function() {
-    // Verificar si hay una sesión activa
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-        currentUser = JSON.parse(savedUser);
-        showDashboard();
-    }
-
-    // NO cargar datos guardados para que todo esté en estado inicial
-    // Esto asegura que las escuelas aparezcan como pendientes
+// Función para abrir el modal de subida de archivos
+function openUploadModal(turno, schoolId = null) {
+    let title = "Subir Reporte - ";
     
-    // Configurar el horario de turnos
-    updateTurnInfo();
-
-    // Cargar historial
-    loadHistory();
-    
-    // Cargar lista de correos
-    loadEmailList();
-
-    // Event listeners
-    document.getElementById('loginForm').addEventListener('submit', handleLogin);
-    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
-    document.getElementById('uploadForm').addEventListener('submit', handleFileUpload);
-    document.getElementById('mergeBtn').addEventListener('click', handleMergeFiles);
-    document.getElementById('sendBtn').addEventListener('click', handleSendReport);
-    document.getElementById('addEmailBtn').addEventListener('click', handleAddEmail);
-
-    // Cerrar modales al hacer clic fuera de ellos
-    window.addEventListener('click', function(event) {
-        const uploadModal = document.getElementById('uploadModal');
-        const viewFileModal = document.getElementById('viewFileModal');
-        
-        if (event.target === uploadModal) {
-            closeUploadModal();
-        }
-        
-        if (event.target === viewFileModal) {
-            closeViewFileModal();
-        }
-    });
-});
-
-// Función para manejar el inicio de sesión
-function handleLogin(e) {
-    e.preventDefault();
-    
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    
-    if (users[email] && users[email].password === password) {
-        currentUser = {
-            email: email,
-            name: users[email].name,
-            role: users[email].role,
-            school: users[email].school
+    if (isUserAdmin === 'true' && schoolId) {
+        // Para admin, mostrar a qué escuela está subiendo
+        const schoolNames = {
+            '26DST0006K': 'Secundaria Técnica #6',
+            '26DST0060K': 'Secundaria Técnica #60', 
+            '26DST0072K': 'Secundaria Técnica #72'
         };
-        
-        // Guardar en localStorage
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
-        
-        showDashboard();
+        title += schoolNames[schoolId] + " - Turno " + turno;
     } else {
-        alert('Credenciales incorrectas. Por favor, intente nuevamente.');
+        title += userSchoolName + " - Turno " + turno;
     }
+    
+    document.getElementById('uploadModalTitle').textContent = title;
+    document.getElementById('turnoInput').value = turno;
+    document.getElementById('schoolIdInput').value = schoolId;
+    document.getElementById('uploadModal').style.display = 'flex';
+    
+    // Guardar para uso posterior
+    currentSchoolId = schoolId;
+    currentTurno = turno;
 }
 
-// Función para manejar el cierre de sesión
-function handleLogout() {
-    currentUser = null;
-    localStorage.removeItem('currentUser');
+// Función para manejar el envío del formulario de subida
+function handleUploadSubmit(event) {
+    event.preventDefault();
     
-    document.getElementById('loginPage').style.display = 'flex';
-    document.getElementById('dashboardPage').style.display = 'none';
-    document.getElementById('logoutBtn').style.display = 'none';
-    document.getElementById('loginBtn').style.display = 'block';
+    const submitBtn = document.getElementById('uploadSubmitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
     
-    // Limpiar formulario
-    document.getElementById('loginForm').reset();
-}
-
-// Función para mostrar el dashboard según el tipo de usuario
-function showDashboard() {
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('dashboardPage').style.display = 'block';
-    document.getElementById('logoutBtn').style.display = 'block';
-    document.getElementById('loginBtn').style.display = 'none';
+    // Mostrar estado de carga en la interfaz
+    const schoolId = document.getElementById('schoolIdInput').value;
+    const turno = document.getElementById('turnoInput').value;
+    const statusElement = document.getElementById(`status-${schoolId}-${turno}`);
     
-    // Mostrar mensaje de bienvenida
-    document.getElementById('welcomeMessage').textContent = `Bienvenido/a, ${currentUser.name}`;
-    
-    // Configurar la interfaz según el rol
-    if (currentUser.role === 'admin') {
-        document.getElementById('adminPanel').style.display = 'block';
-        renderAdminDashboard();
-    } else {
-        document.getElementById('adminPanel').style.display = 'none';
-        renderSchoolDashboard();
+    if (statusElement) {
+        statusElement.classList.add('uploading');
     }
-}
-
-// Función para renderizar el dashboard de administración
-function renderAdminDashboard() {
-    const dashboard = document.getElementById('schoolDashboard');
-    dashboard.innerHTML = '';
-    dashboard.classList.remove('school-dashboard-centered');
     
-    // Agregar tarjetas para las tres escuelas
-    const schools = [
-        { id: '26DST0006K', name: 'Secundaria Técnica #6' },
-        { id: '26DST0060K', name: 'Secundaria Técnica #60' },
-        { id: '26DST0072K', name: 'Secundaria Técnica #72' }
-    ];
+    // Enviar formulario
+    const formData = new FormData(event.target);
     
-    schools.forEach(school => {
-        const hasFile = uploadedFiles[school.id][currentTurn] !== null;
+    fetch('', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(data => {
+        // Recargar la página para mostrar los cambios
+        window.location.href = 'index.php?' + new Date().getTime();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al subir el archivo');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Subir Archivo';
         
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-            <div class="card-header">
-                ${school.name}
-            </div>
-            <div class="card-body">
-                <div class="school-info">
-                    <div class="school-icon">
-                        <i class="fas fa-school"></i>
-                    </div>
-                    <div class="school-details">
-                        <h3>${school.id}</h3>
-                        <p>Turno ${currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1)}</p>
-                    </div>
-                </div>
-                <p>Estado del reporte de hoy:</p>
-                <div class="upload-status">
-                    <div class="status-container">
-                        <span>Estado: <span class="status ${hasFile ? 'status-completed' : 'status-pending'}">${hasFile ? 'Completado' : 'Pendiente'}</span></span>
-                        ${hasFile ? `<button class="view-file-btn" onclick="viewFile('${school.id}')"><i class="fas fa-eye"></i></button>` : ''}
-                    </div>
-                    <div>
-                        <button class="btn btn-primary" onclick="openUploadModal('${school.name}', '${school.id}')">${hasFile ? 'Reemplazar' : 'Subir'} Reporte</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        dashboard.appendChild(card);
+        // Quitar estado de carga
+        if (statusElement) {
+            statusElement.classList.remove('uploading');
+        }
     });
 }
 
-// Función para renderizar el dashboard de la escuela
-function renderSchoolDashboard() {
-    const dashboard = document.getElementById('schoolDashboard');
-    dashboard.innerHTML = '';
-    dashboard.classList.add('school-dashboard-centered');
+// Función para cerrar el modal de subida de archivos
+function closeUploadModal() {
+    document.getElementById('uploadModal').style.display = 'none';
+    document.getElementById('uploadForm').reset();
     
-    const hasFile = uploadedFiles[currentUser.school][currentTurn] !== null;
+    const submitBtn = document.getElementById('uploadSubmitBtn');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = 'Subir Archivo';
+}
+
+// Función para ver un archivo
+function viewFile(filePath, title, fileId = null) {
+    currentViewingFile = filePath;
+    const fileName = filePath.split('/').pop();
+    currentFileName = fileName;
+    currentFileId = fileId;
     
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-        <div class="card-header">
-            ${currentUser.name}
-        </div>
-        <div class="card-body">
-            <div class="school-info">
-                <div class="school-icon">
-                    <i class="fas fa-school"></i>
-                </div>
-                <div class="school-details">
-                    <h3>${currentUser.school}</h3>
-                    <p>Turno ${currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1)}</p>
-                </div>
-            </div>
-            <p>Sube el reporte de asistencia del día de hoy.</p>
-            <div class="upload-status">
-                <div class="status-container">
-                    <span>Estado: <span class="status ${hasFile ? 'status-completed' : 'status-pending'}">${hasFile ? 'Completado' : 'Pendiente'}</span></span>
-                    ${hasFile ? `<button class="view-file-btn" onclick="viewFile('${currentUser.school}')"><i class="fas fa-eye"></i></button>` : ''}
-                </div>
-                <div>
-                    <button class="btn btn-primary" onclick="openUploadModal('${currentUser.name}', '${currentUser.school}')">${hasFile ? 'Reemplazar' : 'Subir'} Reporte</button>
-                </div>
-            </div>
+    document.getElementById('viewFileModalTitle').textContent = title;
+    
+    // Obtener información del archivo
+    const fileSize = getFileSize(filePath);
+    
+    document.getElementById('fileViewContent').innerHTML = `
+        <div class="file-info">
+            <p><strong>Nombre del archivo:</strong> ${fileName}</p>
+            <p><strong>Tamaño:</strong> ${fileSize}</p>
+            <p><strong>Ubicación:</strong> ${filePath}</p>
         </div>
     `;
-    dashboard.appendChild(card);
+    
+    // Mostrar u ocultar botón de eliminar según permisos
+    const deleteBtn = document.getElementById('deleteFileBtn');
+    
+    if (isUserAdmin === 'true' && fileId) {
+        deleteBtn.style.display = 'inline-block';
+    } else {
+        deleteBtn.style.display = 'none';
+    }
+    
+    document.getElementById('viewFileModal').style.display = 'flex';
 }
 
-// Función para actualizar la información del turno actual
+// Función para obtener el tamaño del archivo
+function getFileSize(filePath) {
+    // Esta función simula obtener el tamaño del archivo
+    // En un sistema real, usarías PHP para obtener esta información
+    return 'N/A';
+}
+
+// Función para cerrar el modal de visualización de archivo
+function closeViewFileModal() {
+    document.getElementById('viewFileModal').style.display = 'none';
+    currentViewingFile = null;
+    currentFileName = null;
+    currentFileId = null;
+}
+
+// Función para descargar el archivo actual
+function downloadCurrentFile() {
+    if (currentViewingFile) {
+        downloadFile(currentViewingFile, currentFileName);
+    }
+}
+
+// Función para eliminar el archivo actual
+function deleteCurrentFile() {
+    if (currentFileId) {
+        deleteFile(currentFileId);
+    }
+}
+
+// Función para descargar un archivo
+function downloadFile(filePath, fileName) {
+    // Crear un enlace temporal para descargar el archivo
+    const link = document.createElement('a');
+    link.href = 'download.php?file=' + encodeURIComponent(filePath);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Función para eliminar archivo
+function deleteFile(fileId) {
+    if (confirm('¿Está seguro de eliminar este archivo? Esta acción no se puede deshacer.')) {
+        window.location.href = `?delete_file=${fileId}`;
+    }
+}
+
+// Función para combinar archivos por turno
+function mergeFiles(turno) {
+    if (confirm('¿Está seguro de que desea consolidar los archivos del turno ' + turno + '?')) {
+        const mergeBtn = document.getElementById('mergeBtn');
+        const spinner = document.getElementById('mergeSpinner');
+        
+        // Mostrar spinner y ocultar botón
+        mergeBtn.style.display = 'none';
+        spinner.style.display = 'block';
+        
+        // Realizar solicitud al servidor para consolidar archivos
+        window.location.href = `?action=merge&turno=${turno}`;
+    }
+}
+
+// Función para editar destinatario
+function editarDestinatario(id, email) {
+    document.getElementById('editDestinatarioId').value = id;
+    document.getElementById('editEmail').value = email;
+    document.getElementById('editDestinatarioModal').style.display = 'flex';
+}
+
+// Función para cerrar el modal de edición de destinatario
+function closeEditDestinatarioModal() {
+    document.getElementById('editDestinatarioModal').style.display = 'none';
+}
+
+// Función para enviar concentrado a destinatarios
+function enviarConcentrado() {
+    // Aquí puedes implementar el envío por correo electrónico
+    alert('Función de envío habilitada. Aquí se implementaría el envío del archivo consolidado a la lista de destinatarios.');
+}
+
+// Cerrar modales al hacer clic fuera de ellos
+window.addEventListener('click', function(event) {
+    const uploadModal = document.getElementById('uploadModal');
+    const viewFileModal = document.getElementById('viewFileModal');
+    const editDestinatarioModal = document.getElementById('editDestinatarioModal');
+    
+    if (event.target === uploadModal) {
+        closeUploadModal();
+    }
+    
+    if (event.target === viewFileModal) {
+        closeViewFileModal();
+    }
+    
+    if (event.target === editDestinatarioModal) {
+        closeEditDestinatarioModal();
+    }
+});
+
+// Actualizar información del turno actual
 function updateTurnInfo() {
     const now = new Date();
     const hours = now.getHours();
@@ -244,295 +226,53 @@ function updateTurnInfo() {
     
     // Determinar el turno actual según la hora
     if (hours < 13 || (hours === 13 && minutes < 40)) {
-        currentTurn = 'matutino';
         document.getElementById('currentTurn').textContent = 'Matutino';
         document.getElementById('turnTime').textContent = '07:30 AM';
         document.getElementById('nextTurnInfo').textContent = 'Próximo turno: Vespertino a las 13:40';
     } else {
-        currentTurn = 'vespertino';
         document.getElementById('currentTurn').textContent = 'Vespertino';
         document.getElementById('turnTime').textContent = '01:40 PM';
         document.getElementById('nextTurnInfo').textContent = 'Turno vespertino en curso';
     }
 }
 
-// Función para abrir el modal de subida de archivos
-function openUploadModal(schoolName, schoolId) {
-    document.getElementById('uploadModalTitle').textContent = `Subir Reporte - ${schoolName} - Turno ${currentTurn}`;
-    document.getElementById('uploadModal').style.display = 'flex';
+// Inicializar la página
+document.addEventListener('DOMContentLoaded', function() {
+    updateTurnInfo();
     
-    // Guardar el ID de la escuela como atributo personalizado en el formulario
-    document.getElementById('uploadForm').dataset.schoolId = schoolId;
-}
-
-// Función para cerrar el modal de subida de archivos
-function closeUploadModal() {
-    document.getElementById('uploadModal').style.display = 'none';
-    document.getElementById('uploadForm').reset();
-    document.getElementById('uploadForm').removeAttribute('data-school-id');
-}
-
-// Función para abrir el modal de visualización de archivo
-function viewFile(schoolId) {
-    currentViewingSchool = schoolId;
-    const fileInfo = uploadedFiles[schoolId][currentTurn];
+    // Actualizar la hora cada minuto
+    setInterval(updateTurnInfo, 60000);
     
-    document.getElementById('viewFileModalTitle').textContent = `Documento Subido - ${getSchoolName(schoolId)}`;
-    
-    // Mostrar información del archivo
-    document.getElementById('fileViewContent').innerHTML = `
-        <div class="file-info">
-            <p><strong>Nombre del archivo:</strong> ${fileInfo.name}</p>
-            <p><strong>Tamaño:</strong> ${formatFileSize(fileInfo.size)}</p>
-            <p><strong>Subido el:</strong> ${new Date(fileInfo.timestamp).toLocaleString('es-MX')}</p>
-            <p><strong>Turno:</strong> ${currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1)}</p>
-        </div>
-        <div class="file-preview">
-            <p><i class="fas fa-file-excel" style="font-size: 48px; color: #1D6F42;"></i></p>
-            <p>Vista previa no disponible. Descargue el archivo para ver el contenido.</p>
-        </div>
-    `;
-    
-    document.getElementById('viewFileModal').style.display = 'flex';
-}
-
-// Función para cerrar el modal de visualización de archivo
-function closeViewFileModal() {
-    document.getElementById('viewFileModal').style.display = 'none';
-    currentViewingSchool = null;
-}
-
-// Función para reemplazar un archivo
-function replaceFile() {
-    if (currentViewingSchool) {
-        closeViewFileModal();
-        openUploadModal(getSchoolName(currentViewingSchool), currentViewingSchool);
-    }
-}
-
-// Función auxiliar para obtener el nombre de la escuela
-function getSchoolName(schoolId) {
-    switch(schoolId) {
-        case '26DST0006K': return 'Secundaria Técnica #6';
-        case '26DST0060K': return 'Secundaria Técnica #60';
-        case '26DST0072K': return 'Secundaria Técnica #72';
-        default: return currentUser.name;
-    }
-}
-
-// Función para formatear el tamaño del archivo
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' bytes';
-    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    else return (bytes / 1048576).toFixed(1) + ' MB';
-}
-
-// Función para manejar la subida de archivos
-function handleFileUpload(e) {
-    e.preventDefault();
-    
-    const fileInput = document.getElementById('excelFile');
-    const file = fileInput.files[0];
-    const schoolId = document.getElementById('uploadForm').dataset.schoolId;
-    
-    if (!file) {
-        alert('Por favor, seleccione un archivo.');
-        return;
+    // Ocultar botón de subida cuando se selecciona un archivo
+    const excelFile = document.getElementById('excelFile');
+    if (excelFile) {
+        excelFile.addEventListener('change', function() {
+            const uploadButtons = document.querySelectorAll('.upload-btn');
+            uploadButtons.forEach(btn => {
+                btn.classList.add('hidden');
+            });
+        });
     }
     
-    // Validar que sea un archivo Excel
-    const validExtensions = ['.xlsx', '.xls'];
-    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    
-    if (!validExtensions.includes(fileExtension)) {
-        alert('Por favor, seleccione un archivo Excel válido (.xlsx o .xls).');
-        return;
-    }
-    
-    // Guardar información del archivo subido (solo para la escuela específica)
-    uploadedFiles[schoolId][currentTurn] = {
-        name: file.name,
-        size: file.size,
-        timestamp: new Date()
-    };
-    
-    // Guardar en localStorage
-    localStorage.setItem('uploadedFiles', JSON.stringify(uploadedFiles));
-    
-    // Simular subida de archivo
-    alert(`Archivo "${file.name}" subido correctamente para el turno ${currentTurn}.`);
-    closeUploadModal();
-    
-    // Actualizar dashboard
-    if (currentUser.role === 'admin') {
-        renderAdminDashboard();
-    } else {
-        renderSchoolDashboard();
-    }
-    
-    // Agregar al historial
-    const schoolName = schoolId === '26DST0006K' ? 'Secundaria Técnica #6' : 
-                      schoolId === '26DST0060K' ? 'Secundaria Técnica #60' : 
-                      'Secundaria Técnica #72';
-    
-    reportHistory.unshift({
-        fecha: new Date().toLocaleDateString('es-MX'),
-        escuela: schoolName,
-        turno: currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1),
-        alumnos: '--/--',
-        maestros: '--/--'
-    });
-    
-    // Guardar historial en localStorage
-    localStorage.setItem('reportHistory', JSON.stringify(reportHistory));
-    
-    loadHistory();
-}
-
-// Función para manejar la combinación de archivos
-function handleMergeFiles() {
-    const mergeBtn = document.getElementById('mergeBtn');
-    const spinner = document.getElementById('mergeSpinner');
-    const sendBtn = document.getElementById('sendBtn');
-    
-    // Verificar que los 3 archivos estén subidos
-    const allFilesUploaded = Object.values(uploadedFiles).every(school => 
-        school[currentTurn] !== null
-    );
-    
-    if (!allFilesUploaded) {
-        alert('No se pueden juntar los archivos. Asegúrese de que las 3 escuelas hayan subido sus reportes.');
-        return;
-    }
-    
-    // Mostrar spinner y ocultar botón
-    mergeBtn.style.display = 'none';
-    spinner.style.display = 'block';
-    
-    // Simular proceso de combinación (2 segundos)
-    setTimeout(() => {
-        spinner.style.display = 'none';
-        sendBtn.style.display = 'block';
-        alert('Los archivos se han combinado exitosamente. Ahora puede enviar el reporte concentrado.');
-    }, 2000);
-}
-
-// Función para manejar el envío del reporte concentrado
-function handleSendReport() {
-    if (emailRecipients.length === 0) {
-        alert('No hay destinatarios configurados. Agregue al menos un correo electrónico.');
-        return;
-    }
-    
-    // Simular envío de correo
-    alert(`Reporte concentrado enviado exitosamente a: ${emailRecipients.join(', ')}`);
-    
-    // Reiniciar interfaz
-    document.getElementById('sendBtn').style.display = 'none';
-    document.getElementById('mergeBtn').style.display = 'block';
-}
-
-// Función para manejar la adición de un nuevo correo
-function handleAddEmail() {
-    const newEmailInput = document.getElementById('newEmail');
-    const newEmail = newEmailInput.value.trim();
-    
-    if (!newEmail) {
-        alert('Por favor, ingrese una dirección de correo electrónico.');
-        return;
-    }
-    
-    // Validar formato de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newEmail)) {
-        alert('Por favor, ingrese una dirección de correo electrónico válida.');
-        return;
-    }
-    
-    // Agregar a la lista si no existe
-    if (!emailRecipients.includes(newEmail)) {
-        emailRecipients.push(newEmail);
+    // Mostrar animación de actualización en elementos recién actualizados
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('updated')) {
+        const schoolId = urlParams.get('school');
+        const turno = urlParams.get('turno');
         
-        // Guardar en localStorage
-        localStorage.setItem('emailRecipients', JSON.stringify(emailRecipients));
-        
-        // Actualizar interfaz
-        loadEmailList();
-        newEmailInput.value = '';
-        
-        alert('Correo electrónico agregado exitosamente.');
-    } else {
-        alert('Este correo electrónico ya está en la lista.');
-    }
-}
-
-// Función para editar un correo
-function editEmail(email) {
-    const newEmail = prompt('Editar correo electrónico:', email);
-    if (newEmail && newEmail !== email) {
-        const index = emailRecipients.indexOf(email);
-        if (index !== -1) {
-            emailRecipients[index] = newEmail;
-            
-            // Guardar en localStorage
-            localStorage.setItem('emailRecipients', JSON.stringify(emailRecipients));
-            
-            alert('Correo electrónico actualizado. Recargando lista...');
-            loadEmailList();
+        if (schoolId && turno) {
+            const statusElement = document.getElementById(`status-${schoolId}-${turno}`);
+            if (statusElement) {
+                statusElement.classList.add('status-updated');
+                setTimeout(() => {
+                    statusElement.classList.remove('status-updated');
+                }, 2000);
+            }
         }
     }
-}
+});
 
-// Función para eliminar un correo
-function deleteEmail(email) {
-    if (confirm(`¿Está seguro de que desea eliminar el correo ${email}?`)) {
-        const index = emailRecipients.indexOf(email);
-        if (index !== -1) {
-            emailRecipients.splice(index, 1);
-            
-            // Guardar en localStorage
-            localStorage.setItem('emailRecipients', JSON.stringify(emailRecipients));
-            
-            alert('Correo electrónico eliminado. Recargando lista...');
-            loadEmailList();
-        }
-    }
-}
-
-// Función para cargar la lista de correos
-function loadEmailList() {
-    const emailList = document.getElementById('emailList');
-    emailList.innerHTML = '';
-    
-    emailRecipients.forEach(email => {
-        const emailItem = document.createElement('div');
-        emailItem.className = 'email-item';
-        emailItem.innerHTML = `
-            <span>${email}</span>
-            <div class="email-actions">
-                <button class="btn-icon" onclick="editEmail('${email}')"><i class="fas fa-edit"></i></button>
-                <button class="btn-icon" onclick="deleteEmail('${email}')"><i class="fas fa-trash"></i></button>
-            </div>
-        `;
-        emailList.appendChild(emailItem);
-    });
-}
-
-// Función para cargar el historial
-function loadHistory() {
-    const historyTableBody = document.getElementById('historyTableBody');
-    historyTableBody.innerHTML = '';
-    
-    reportHistory.forEach(report => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${report.fecha}</td>
-            <td>${report.escuela}</td>
-            <td>${report.turno}</td>
-            <td>${report.alumnos}</td>
-            <td>${report.maestros}</td>
-            <td><button class="btn-icon"><i class="fas fa-download"></i></button></td>
-        `;
-        historyTableBody.appendChild(row);
-    });
+// Función para mostrar login (para cuando no hay sesión PHP)
+function showLogin() {
+    document.getElementById('loginPage').style.display = 'flex';
 }
